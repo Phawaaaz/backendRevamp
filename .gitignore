@@ -1,10 +1,30 @@
-node_modules/
-env.example
-dist/
+# Logs
+logs
+*.log
+npm-debug.log*
 combined.log
 error.log
+
+# Dependency directories
 node_modules/
-npm-debug.log*
-.env
-build/
+jspm_packages/
+
+# Distribution / build results
 dist/
+build/
+.nuxt/
+.next/
+storybook-static/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
