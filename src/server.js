@@ -46,6 +46,42 @@ app.use(express.urlencoded({ extended: true }));
 // Swagger Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs));
 
+// Root route
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Welcome to the Visitor Management System API',
+    version: '1.0.0',
+    documentation: {
+      swagger: '/api-docs',
+      description: 'Interactive API documentation'
+    },
+    availableEndpoints: {
+      authentication: {
+        path: '/api/auth',
+        description: 'User authentication and authorization'
+      },
+      visitors: {
+        path: '/api/visitors',
+        description: 'Visitor management operations'
+      },
+      admin: {
+        path: '/api/admin',
+        description: 'Administrative operations'
+      },
+      superAdmin: {
+        path: '/api/super-admin',
+        description: 'Super admin operations'
+      }
+    },
+    status: {
+      server: 'Running',
+      environment: process.env.NODE_ENV || 'development',
+      timestamp: new Date().toISOString()
+    }
+  });
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/visitors', visitorRoutes);
