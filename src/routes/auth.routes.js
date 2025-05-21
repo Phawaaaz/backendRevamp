@@ -51,7 +51,23 @@ const { auth } = require('../middleware/auth.middleware');
  *                 message:
  *                   type: string
  *                 data:
- *                   $ref: '#/components/schemas/User'
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *                         firstName:
+ *                           type: string
+ *                         lastName:
+ *                           type: string
+ *                         role:
+ *                           type: string
+ *                     token:
+ *                       type: string
  *       400:
  *         description: Invalid input data
  */
@@ -149,7 +165,18 @@ router.post('/register', [
  *                   type: object
  *                   properties:
  *                     user:
- *                       $ref: '#/components/schemas/User'
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *                         firstName:
+ *                           type: string
+ *                         lastName:
+ *                           type: string
+ *                         role:
+ *                           type: string
  *                     token:
  *                       type: string
  *       400:
@@ -221,7 +248,22 @@ router.post('/login', [
  *                 success:
  *                   type: boolean
  *                 data:
- *                   $ref: '#/components/schemas/User'
+ *                   type: object
+ *                   properties:
+ *                     _id:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     firstName:
+ *                       type: string
+ *                     lastName:
+ *                       type: string
+ *                     role:
+ *                       type: string
+ *                     phone:
+ *                       type: string
+ *                     photo:
+ *                       type: string
  *       401:
  *         description: Not authenticated
  */
