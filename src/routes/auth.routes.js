@@ -8,36 +8,66 @@ const { auth } = require('../middleware/auth.middleware');
 
 /**
  * @swagger
+ * components:
+ *   schemas:
+ *     RegisterRequest:
+ *       type: object
+ *       required:
+ *         - email
+ *         - password
+ *         - firstName
+ *         - lastName
+ *       properties:
+ *         email:
+ *           type: string
+ *           format: email
+ *           example: john.doe@example.com
+ *         password:
+ *           type: string
+ *           format: password
+ *           minLength: 6
+ *           example: "Password123"
+ *         firstName:
+ *           type: string
+ *           example: John
+ *         lastName:
+ *           type: string
+ *           example: Doe
+ *         phone:
+ *           type: string
+ *           example: "+1234567890"
+ *         photo:
+ *           type: string
+ *           example: "default-avatar.png"
+ *     LoginRequest:
+ *       type: object
+ *       required:
+ *         - email
+ *         - password
+ *       properties:
+ *         email:
+ *           type: string
+ *           format: email
+ *           example: john.doe@example.com
+ *         password:
+ *           type: string
+ *           format: password
+ *           example: "Password123"
+ */
+
+/**
+ * @swagger
  * /api/auth/register:
  *   post:
- *     summary: Register a new user (default role: visitor)
+ *     summary: Register a new user
+ *     description: Create a new user account with visitor role
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - email
- *               - password
- *               - firstName
- *               - lastName
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *               password:
- *                 type: string
- *                 minLength: 6
- *               firstName:
- *                 type: string
- *               lastName:
- *                 type: string
- *               phone:
- *                 type: string
- *               photo:
- *                 type: string
+ *             $ref: '#/components/schemas/RegisterRequest'
  *     responses:
  *       201:
  *         description: User registered successfully
@@ -48,8 +78,10 @@ const { auth } = require('../middleware/auth.middleware');
  *               properties:
  *                 success:
  *                   type: boolean
+ *                   example: true
  *                 message:
  *                   type: string
+ *                   example: Registration successful
  *                 data:
  *                   type: object
  *                   properties:
@@ -58,42 +90,106 @@ const { auth } = require('../middleware/auth.middleware');
  *                       properties:
  *                         _id:
  *                           type: string
+ *                           example: "507f1f77bcf86cd799439011"
  *                         email:
  *                           type: string
+ *                           example: john.doe@example.com
  *                         firstName:
  *                           type: string
+ *                           example: John
  *                         lastName:
  *                           type: string
+ *                           example: Doe
  *                         role:
  *                           type: string
+ *                           example: visitor
  *                     token:
  *                       type: string
+ *                       example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
  *       400:
  *         description: Invalid input data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Validation failed
+ *                 errors:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       msg:
+ *                         type: string
+ *                         example: Please enter a valid email
+ *                       param:
+ *                         type: string
+ *                         example: email
  */
 router.post('/register', [
-  body('email').isEmail().withMessage('Please enter a valid email'),
-  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
-  body('firstName').notEmpty().withMessage('First name is required'),
-  body('lastName').notEmpty().withMessage('Last name is required')
+  body('email')
+    .isEmail()
+    .withMessage('Please enter a valid email')
+    .normalizeEmail(),
+  body('password')
+    .isLength({ min: 6 })
+    .withMessage('Password must be at least 6 characters long')
+    .matches(/\d/)
+    .withMessage('Password must contain at least one number')
+    .matches(/[a-zA-Z]/)
+    .withMessage('Password must contain at least one letter'),
+  body('firstName')
+    .trim()
+    .notEmpty()
+    .withMessage('First name is required')
+    .isLength({ min: 2 })
+    .withMessage('First name must be at least 2 characters long'),
+  body('lastName')
+    .trim()
+    .notEmpty()
+    .withMessage('Last name is required')
+    .isLength({ min: 2 })
+    .withMessage('Last name must be at least 2 characters long'),
+  body('phone')
+    .optional()
+    .trim()
+    .matches(/^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/)
+    .withMessage('Please enter a valid phone number'),
+  body('photo')
+    .optional()
+    .trim()
 ], async (req, res) => {
   try {
+    // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
     }
 
     const { email, password, firstName, lastName, phone, photo } = req.body;
 
-    let user = await User.findOne({ email });
-    if (user) {
-      return res.status(400).json({ success: false, message: 'User already exists' });
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email already registered'
+      });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    user = new User({
+    // Create new user
+    const user = new User({
       email,
-      password: hashedPassword,
+      password,
       firstName,
       lastName,
       phone,
@@ -101,30 +197,40 @@ router.post('/register', [
       role: 'visitor'
     });
 
+    // Save user
     await user.save();
 
+    // Generate JWT token
     const token = jwt.sign(
       { userId: user._id, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
 
+    // Send response
     res.status(201).json({
       success: true,
-      message: 'User registered successfully',
+      message: 'Registration successful',
       data: {
         user: {
           _id: user._id,
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
-          role: user.role
+          role: user.role,
+          phone: user.phone,
+          photo: user.photo
         },
         token
       }
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('Registration error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Registration failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
@@ -132,23 +238,15 @@ router.post('/register', [
  * @swagger
  * /api/auth/login:
  *   post:
- *     summary: Login user (all roles)
+ *     summary: Login user
+ *     description: Authenticate user and get access token
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - email
- *               - password
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *               password:
- *                 type: string
+ *             $ref: '#/components/schemas/LoginRequest'
  *     responses:
  *       200:
  *         description: Login successful
@@ -159,8 +257,10 @@ router.post('/register', [
  *               properties:
  *                 success:
  *                   type: boolean
+ *                   example: true
  *                 message:
  *                   type: string
+ *                   example: Login successful
  *                 data:
  *                   type: object
  *                   properties:
@@ -169,18 +269,35 @@ router.post('/register', [
  *                       properties:
  *                         _id:
  *                           type: string
+ *                           example: "507f1f77bcf86cd799439011"
  *                         email:
  *                           type: string
+ *                           example: john.doe@example.com
  *                         firstName:
  *                           type: string
+ *                           example: John
  *                         lastName:
  *                           type: string
+ *                           example: Doe
  *                         role:
  *                           type: string
+ *                           example: visitor
  *                     token:
  *                       type: string
+ *                       example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
  *       400:
  *         description: Invalid credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Invalid credentials
  */
 router.post('/login', [
   body('email').isEmail().withMessage('Please enter a valid email'),
@@ -234,12 +351,13 @@ router.post('/login', [
  * /api/auth/me:
  *   get:
  *     summary: Get current user information
+ *     description: Get the profile of the currently authenticated user
  *     tags: [Authentication]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Current user information
+ *         description: User information retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -247,25 +365,44 @@ router.post('/login', [
  *               properties:
  *                 success:
  *                   type: boolean
+ *                   example: true
  *                 data:
  *                   type: object
  *                   properties:
  *                     _id:
  *                       type: string
+ *                       example: "507f1f77bcf86cd799439011"
  *                     email:
  *                       type: string
+ *                       example: john.doe@example.com
  *                     firstName:
  *                       type: string
+ *                       example: John
  *                     lastName:
  *                       type: string
+ *                       example: Doe
  *                     role:
  *                       type: string
+ *                       example: visitor
  *                     phone:
  *                       type: string
+ *                       example: "+1234567890"
  *                     photo:
  *                       type: string
+ *                       example: "default-avatar.png"
  *       401:
  *         description: Not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Not authenticated
  */
 router.get('/me', auth, async (req, res) => {
   try {
