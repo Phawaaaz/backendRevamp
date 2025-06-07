@@ -38,7 +38,7 @@ const options = {
         description: 'Development server'
       },
       {
-        url: 'https://api.example.com',
+        url: 'https://phawaazvms.onrender.com',
         description: 'Production server'
       }
     ],
