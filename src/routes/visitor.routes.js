@@ -92,20 +92,23 @@ router.post('/', auth, checkRole(['visitor', 'admin']), [
  * @swagger
  * /api/visitors:
  *   get:
- *     summary: Get visitor's records
+ *     summary: Get all visitor records (admin only)
  *     tags: [Visitors]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: List of visitor records
+ *         description: List of all visitor records
  *       401:
  *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
  */
-router.get('/my-visits', auth, checkRole(['visitor']), async (req, res) => {
+router.get('/', auth, checkRole(['admin']), async (req, res) => {
   try {
-    const visits = await Visitor.find({ user: req.user._id })
+    const visits = await Visitor.find()
       .sort({ visitDate: -1 })
+      .populate('user', 'firstName lastName email')
       .populate('host', 'firstName lastName email');
 
     res.json({
@@ -335,6 +338,81 @@ router.patch('/preferences', auth, checkRole(['visitor']), async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error updating preferences',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/visitors/summary:
+ *   get:
+ *     summary: Get visitor's visit summary including upcoming, completed, and total visits
+ *     tags: [Visitors]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Visitor's visit summary
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/summary', auth, checkRole(['visitor']), async (req, res) => {
+  try {
+    const now = new Date();
+    
+    // Get upcoming visits (scheduled and not checked in)
+    const upcomingVisits = await Visitor.find({
+      user: req.user._id,
+      visitDate: { $gte: now },
+      status: 'scheduled'
+    })
+    .sort({ visitDate: 1 })
+    .populate('host', 'firstName lastName email');
+
+    // Get completed visits (checked out)
+    const completedVisits = await Visitor.find({
+      user: req.user._id,
+      status: 'checked-out'
+    })
+    .sort({ visitDate: -1 })
+    .populate('host', 'firstName lastName email');
+
+    // Get all visits for total count
+    const totalVisits = await Visitor.countDocuments({ user: req.user._id });
+
+    // Get recent visits for summary
+    const recentVisits = await Visitor.find({
+      user: req.user._id,
+      status: { $in: ['checked-in', 'checked-out'] }
+    })
+    .sort({ visitDate: -1 })
+    .limit(5)
+    .populate('host', 'firstName lastName email');
+
+    // Format recent visits for summary display
+    const visitSummary = recentVisits.map(visit => ({
+      location: visit.company || 'Company HQ',
+      date: visit.visitDate.toISOString().split('T')[0],
+      status: visit.status === 'checked-in' ? 'Checked In' : 'Checked Out',
+      host: visit.host ? `${visit.host.firstName} ${visit.host.lastName}` : 'Not assigned'
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        upcomingVisits: upcomingVisits.length,
+        completedVisits: completedVisits.length,
+        totalVisits,
+        visitSummary,
+        upcomingVisitsList: upcomingVisits,
+        completedVisitsList: completedVisits
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching visit summary',
       error: error.message
     });
   }

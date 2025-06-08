@@ -116,3 +116,17 @@
 {"level":"info","message":"MongoDB Connected: ac-gkmix8l-shard-00-00.cyza6yw.mongodb.net"}
 {"level":"info","message":"Server is running on port 5000"}
 {"level":"info","message":"API Documentation available at http://localhost:5000/api-docs"}
+{"level":"info","message":"MongoDB Connected: ac-gkmix8l-shard-00-00.cyza6yw.mongodb.net"}
+{"level":"info","message":"Server is running on port 5000"}
+{"level":"info","message":"API Documentation available at http://localhost:5000/api-docs"}
+{"level":"warn","message":"MongoDB disconnected"}
+{"level":"warn","message":"MongoDB disconnected"}
+{"level":"info","message":"MongoDB Connected: ac-gkmix8l-shard-00-00.cyza6yw.mongodb.net"}
+{"level":"info","message":"Server is running on port 5000"}
+{"level":"info","message":"API Documentation available at http://localhost:5000/api-docs"}
+{"level":"info","message":"MongoDB Connected: ac-gkmix8l-shard-00-01.cyza6yw.mongodb.net"}
+{"level":"info","message":"Server is running on port 5000"}
+{"level":"info","message":"API Documentation available at http://localhost:5000/api-docs"}
+{"level":"info","message":"MongoDB Connected: ac-gkmix8l-shard-00-01.cyza6yw.mongodb.net"}
+{"level":"info","message":"Server is running on port 5000"}
+{"level":"info","message":"API Documentation available at http://localhost:5000/api-docs"}
