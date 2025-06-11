@@ -401,4 +401,93 @@ router.post('/register-admin', [
   }
 });
 
+/**
+ * @swagger
+ * /api/admin/dashboard:
+ *   get:
+ *     summary: Get admin details for dashboard
+ *     description: Retrieve admin details including user information
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Admin details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     _id:
+ *                       type: string
+ *                       example: "507f1f77bcf86cd799439011"
+ *                     email:
+ *                       type: string
+ *                       example: "admin.user@example.com"
+ *                     firstName:
+ *                       type: string
+ *                       example: "Admin"
+ *                     lastName:
+ *                       type: string
+ *                       example: "User"
+ *                     role:
+ *                       type: string
+ *                       example: "admin"
+ *                     phone:
+ *                       type: string
+ *                       example: "+1234567890"
+ *                     photo:
+ *                       type: string
+ *                       example: "admin-avatar.png"
+ *                     department:
+ *                       type: string
+ *                       example: "IT"
+ *                     title:
+ *                       type: string
+ *                       example: "System Administrator"
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Admin not found
+ *       500:
+ *         description: Server error
+ */
+router.get('/dashboard', auth, checkRole(['admin']), async (req, res) => {
+  try {
+    const admin = await Admin.findOne({ user: req.user.userId }).populate('user', 'email firstName lastName phone photo');
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: 'Admin not found'
+      });
+    }
+    res.json({
+      success: true,
+      data: {
+        _id: admin._id,
+        email: admin.user.email,
+        firstName: admin.user.firstName,
+        lastName: admin.user.lastName,
+        role: admin.user.role,
+        phone: admin.user.phone,
+        photo: admin.user.photo,
+        department: admin.department,
+        title: admin.title
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching admin details for dashboard:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
 module.exports = router; 
