@@ -378,6 +378,15 @@ router.patch('/preferences', auth, checkRole(['visitor']), async (req, res) => {
  *                     checkedOutVisitors:
  *                       type: number
  *                       example: 30
+ *                     upcomingVisits:
+ *                       type: number
+ *                       example: 10
+ *                     completedVisits:
+ *                       type: number
+ *                       example: 30
+ *                     totalVisits:
+ *                       type: number
+ *                       example: 40
  *       401:
  *         description: Unauthorized
  *       500:
@@ -389,6 +398,9 @@ router.get('/summary', auth, async (req, res) => {
     const activeVisitors = await Visitor.countDocuments({ status: 'checked-in' });
     const pendingVisitors = await Visitor.countDocuments({ status: 'pending' });
     const checkedOutVisitors = await Visitor.countDocuments({ status: 'checked-out' });
+    const upcomingVisits = await Visitor.countDocuments({ status: 'pending', visitDate: { $gt: new Date() } });
+    const completedVisits = await Visitor.countDocuments({ status: 'checked-out' });
+    const totalVisits = totalVisitors;
 
     res.json({
       success: true,
@@ -396,7 +408,10 @@ router.get('/summary', auth, async (req, res) => {
         totalVisitors,
         activeVisitors,
         pendingVisitors,
-        checkedOutVisitors
+        checkedOutVisitors,
+        upcomingVisits,
+        completedVisits,
+        totalVisits
       }
     });
   } catch (error) {
