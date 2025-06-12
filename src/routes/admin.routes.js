@@ -490,4 +490,69 @@ router.get('/dashboard', auth, checkRole(['admin']), async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/admin/summary:
+ *   get:
+ *     summary: Get admin summary
+ *     description: Retrieve a summary of admin activities and statistics
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Admin summary retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     totalVisitors:
+ *                       type: number
+ *                       example: 100
+ *                     activeVisitors:
+ *                       type: number
+ *                       example: 50
+ *                     pendingVisitors:
+ *                       type: number
+ *                       example: 20
+ *                     checkedOutVisitors:
+ *                       type: number
+ *                       example: 30
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/summary', auth, checkRole(['admin']), async (req, res) => {
+  try {
+    const totalVisitors = await Visitor.countDocuments();
+    const activeVisitors = await Visitor.countDocuments({ status: 'checked-in' });
+    const pendingVisitors = await Visitor.countDocuments({ status: 'pending' });
+    const checkedOutVisitors = await Visitor.countDocuments({ status: 'checked-out' });
+
+    res.json({
+      success: true,
+      data: {
+        totalVisitors,
+        activeVisitors,
+        pendingVisitors,
+        checkedOutVisitors
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching admin summary:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
 module.exports = router; 
