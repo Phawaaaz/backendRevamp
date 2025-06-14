@@ -151,9 +151,17 @@ router.get('/', auth, checkRole(['admin']), async (req, res) => {
  *       401:
  *         description: Unauthorized
  */
-router.post('/check-in/:qrCode', auth, checkRole(['admin']), async (req, res) => {
+router.post('/check-in', auth, checkRole(['admin']), async (req, res) => {
   try {
-    const { qrCode } = req.params;
+    const { qrCode } = req.body;
+    
+    if (!qrCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'QR code is required'
+      });
+    }
+
     const validationResult = validateQRCode(qrCode);
 
     if (!validationResult.valid) {
@@ -345,6 +353,52 @@ router.patch('/preferences', auth, checkRole(['visitor']), async (req, res) => {
 
 /**
  * @swagger
+ * /api/visitors/my-visits:
+ *   get:
+ *     summary: Get visitor's visit details including QR codes
+ *     tags: [Visitors]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of visitor's visits with QR codes
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/my-visits', auth, checkRole(['visitor']), async (req, res) => {
+  try {
+    const visits = await Visitor.find({ user: req.user._id })
+      .sort({ visitDate: -1 })
+      .select('visitDate status qrCode qrCodeExpiry purpose expectedDuration company notes checkInTime checkOutTime')
+      .populate('host', 'firstName lastName email');
+
+    // Filter and format the visits
+    const formattedVisits = visits.map(visit => ({
+      ...visit.toObject(),
+      isUpcoming: visit.visitDate > new Date() && visit.status === 'scheduled',
+      isActive: visit.status === 'checked-in',
+      isCompleted: visit.status === 'checked-out'
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        upcomingVisits: formattedVisits.filter(v => v.isUpcoming),
+        activeVisits: formattedVisits.filter(v => v.isActive),
+        completedVisits: formattedVisits.filter(v => v.isCompleted)
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching visitor details',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
  * /api/visitors/summary:
  *   get:
  *     summary: Get visitor summary
@@ -387,6 +441,15 @@ router.patch('/preferences', auth, checkRole(['visitor']), async (req, res) => {
  *                     totalVisits:
  *                       type: number
  *                       example: 40
+ *                     qrCodeStats:
+ *                       type: object
+ *                       properties:
+ *                         validQRCodes:
+ *                           type: number
+ *                           example: 50
+ *                         expiredQRCodes:
+ *                           type: number
+ *                           example: 10
  *       401:
  *         description: Unauthorized
  *       500:
@@ -398,9 +461,14 @@ router.get('/summary', auth, async (req, res) => {
     const activeVisitors = await Visitor.countDocuments({ status: 'checked-in' });
     const pendingVisitors = await Visitor.countDocuments({ status: 'pending' });
     const checkedOutVisitors = await Visitor.countDocuments({ status: 'checked-out' });
-    const upcomingVisits = await Visitor.countDocuments({ status: 'pending', visitDate: { $gt: new Date() } });
+    const upcomingVisits = await Visitor.countDocuments({ status: 'scheduled', visitDate: { $gt: new Date() } });
     const completedVisits = await Visitor.countDocuments({ status: 'checked-out' });
     const totalVisits = totalVisitors;
+
+    // Get QR code statistics
+    const validQRCodes = await Visitor.countDocuments({
+      qrCodeExpiry: { $gt: new Date() }
+    });
 
     res.json({
       success: true,
@@ -411,7 +479,11 @@ router.get('/summary', auth, async (req, res) => {
         checkedOutVisitors,
         upcomingVisits,
         completedVisits,
-        totalVisits
+        totalVisits,
+        qrCodeStats: {
+          validQRCodes,
+          expiredQRCodes: totalVisitors - validQRCodes
+        }
       }
     });
   } catch (error) {
