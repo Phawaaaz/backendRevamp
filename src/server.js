@@ -5,6 +5,8 @@ const winston = require('winston');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpecs = require('./config/swagger');
 const connectDB = require('./config/database');
+const createDefaultAdmin = require('./utils/defaultAdmin');
+const checkAndCreateSuperAdmin = require('./utils/checkSuperAdmin');
 
 // Debug: Check if environment variables are loaded
 console.log('Environment variables loaded:', {
@@ -102,6 +104,13 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     await connectDB();
+    
+    // Create default admin users
+    await createDefaultAdmin();
+    
+    // Ensure super admin exists
+    await checkAndCreateSuperAdmin();
+    
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
       logger.info(`Server is running on port ${PORT}`);

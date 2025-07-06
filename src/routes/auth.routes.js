@@ -417,276 +417,132 @@ router.get('/me', auth, async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/auth/admin/register:
- *   post:
- *     summary: Register a new admin user
- *     description: Create a new admin account
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - email
- *               - password
- *               - firstName
- *               - lastName
- *               - department
- *               - title
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *                 example: admin.user@example.com
- *               password:
- *                 type: string
- *                 format: password
- *                 minLength: 6
- *                 example: "AdminPass123"
- *               firstName:
- *                 type: string
- *                 example: Admin
- *               lastName:
- *                 type: string
- *                 example: User
- *               phone:
- *                 type: string
- *                 example: "+1234567890"
- *               photo:
- *                 type: string
- *                 example: "admin-avatar.png"
- *               department:
- *                 type: string
- *                 example: "IT"
- *               title:
- *                 type: string
- *                 example: "System Administrator"
- *     responses:
- *       201:
- *         description: Admin registered successfully
- *       400:
- *         description: Invalid input data or email already registered
- *       500:
- *         description: Server error
- */
-router.post('/admin/register', [
-  body('email')
-    .isEmail()
-    .withMessage('Please enter a valid email')
-    .normalizeEmail(),
-  body('password')
-    .isLength({ min: 6 })
-    .withMessage('Password must be at least 6 characters long')
-    .matches(/\d/)
-    .withMessage('Password must contain at least one number')
-    .matches(/[a-zA-Z]/)
-    .withMessage('Password must contain at least one letter'),
-  body('firstName')
-    .trim()
-    .notEmpty()
-    .withMessage('First name is required')
-    .isLength({ min: 2 })
-    .withMessage('First name must be at least 2 characters long'),
-  body('lastName')
-    .trim()
-    .notEmpty()
-    .withMessage('Last name is required')
-    .isLength({ min: 2 })
-    .withMessage('Last name must be at least 2 characters long'),
-  body('phone')
-    .optional()
-    .trim()
-    .matches(/^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/)
-    .withMessage('Please enter a valid phone number'),
-  body('photo')
-    .optional()
-    .trim(),
-  body('department')
-    .trim()
-    .notEmpty()
-    .withMessage('Department is required'),
-  body('title')
-    .trim()
-    .notEmpty()
-    .withMessage('Title is required'),
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: errors.array()
-      });
-    }
 
-    const { email, password, firstName, lastName, phone, photo, department, title } = req.body;
 
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email already registered'
-      });
-    }
 
-    const user = new User({
-      email,
-      password,
-      firstName,
-      lastName,
-      phone,
-      photo,
-      role: 'admin'
-    });
-
-    await user.save();
-
-    const admin = new Admin({
-      user: user._id,
-      department,
-      title,
-    });
-
-    await admin.save();
-
-    const token = jwt.sign(
-      { userId: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
-    );
-
-    res.status(201).json({
-      success: true,
-      message: 'Admin registration successful',
-      data: {
-        user: {
-          _id: user._id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role,
-          phone: user.phone,
-          photo: user.photo
-        },
-        admin: {
-          _id: admin._id,
-          department: admin.department,
-          title: admin.title
-        },
-        token
-      }
-    });
-  } catch (error) {
-    console.error('Admin registration error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Admin registration failed',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
 
 /**
  * @swagger
- * /api/auth/admin/login:
- *   post:
- *     summary: Login admin user
- *     description: Authenticate admin and get access token
+ * /api/auth/profile:
+ *   get:
+ *     summary: Get user profile and dashboard information
  *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/LoginRequest'
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Admin logged in successfully
- *       400:
- *         description: Invalid credentials or not an admin
- *       500:
- *         description: Server error
+ *         description: User profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *                         firstName:
+ *                           type: string
+ *                         lastName:
+ *                           type: string
+ *                         role:
+ *                           type: string
+ *                         phone:
+ *                           type: string
+ *                         photo:
+ *                           type: string
+ *                         lastLogin:
+ *                           type: string
+ *                     dashboard:
+ *                       type: object
+ *                       properties:
+ *                         redirectTo:
+ *                           type: string
+ *                           example: "/admin/dashboard"
+ *                         role:
+ *                           type: string
+ *                           example: "admin"
+ *                         permissions:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *       401:
+ *         description: Unauthorized
  */
-router.post('/admin/login', [
-  body('email')
-    .isEmail()
-    .withMessage('Please enter a valid email')
-    .normalizeEmail(),
-  body('password')
-    .notEmpty()
-    .withMessage('Password is required')
-], async (req, res) => {
+router.get('/profile', auth, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: errors.array()
-      });
-    }
-
-    const { email, password } = req.body;
-
-    const user = await User.findOne({ email });
+    const user = await User.findById(req.user._id).select('-password');
+    
     if (!user) {
-      return res.status(400).json({
+      return res.status(404).json({
         success: false,
-        message: 'Invalid credentials'
+        message: 'User not found'
       });
     }
 
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid credentials'
-      });
+    // Determine dashboard redirect based on role
+    let redirectTo = '/visitor/dashboard';
+    let permissions = ['view_visits', 'create_visits'];
+
+    switch (user.role) {
+      case 'admin':
+        redirectTo = '/admin/dashboard';
+        permissions = [
+          'view_all_visitors',
+          'check_in_visitors',
+          'check_out_visitors',
+          'manage_visitors',
+          'view_reports',
+          'manage_users'
+        ];
+        break;
+      case 'super_admin':
+        redirectTo = '/super-admin/dashboard';
+        permissions = [
+          'view_all_visitors',
+          'check_in_visitors',
+          'check_out_visitors',
+          'manage_visitors',
+          'view_reports',
+          'manage_users',
+          'manage_admins',
+          'system_settings'
+        ];
+        break;
+      default:
+        redirectTo = '/visitor/dashboard';
+        permissions = ['view_visits', 'create_visits'];
     }
-
-    if (user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. Not an admin.'
-      });
-    }
-
-    const token = jwt.sign(
-      { userId: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
-    );
-
-    user.lastLogin = Date.now();
-    await user.save();
 
     res.json({
       success: true,
-      message: 'Admin logged in successfully',
       data: {
-        user: {
-          _id: user._id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role
-        },
-        token
+        user,
+        dashboard: {
+          redirectTo,
+          role: user.role,
+          permissions
+        }
       }
     });
   } catch (error) {
-    console.error('Admin login error:', error);
     res.status(500).json({
       success: false,
-      message: 'Admin login failed',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Error fetching user profile',
+      error: error.message
     });
   }
 });
+
+
 
 module.exports = router; 
