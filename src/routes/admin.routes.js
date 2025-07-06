@@ -446,4 +446,174 @@ router.get('/summary', auth, checkRole(['admin']), async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/admin/dashboard-stats:
+ *   get:
+ *     summary: Get admin dashboard statistics
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Dashboard stats retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/dashboard-stats', auth, checkRole(['admin', 'super_admin']), async (req, res) => {
+  try {
+    const Visitor = require('../models/visitor.model');
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+
+    // This week
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    endOfWeek.setHours(23, 59, 59, 999);
+
+    // Today
+    const totalVisitorsToday = await Visitor.countDocuments({ visitDate: { $gte: startOfToday, $lte: endOfToday } });
+    const checkedInToday = await Visitor.countDocuments({ status: 'checked-in', checkInTime: { $gte: startOfToday, $lte: endOfToday } });
+    const checkedOutToday = await Visitor.countDocuments({ status: 'checked-out', checkOutTime: { $gte: startOfToday, $lte: endOfToday } });
+    const upcomingVisits = await Visitor.countDocuments({ status: 'scheduled', visitDate: { $gte: now } });
+
+    // This week
+    const totalVisitorsThisWeek = await Visitor.countDocuments({ visitDate: { $gte: startOfWeek, $lte: endOfWeek } });
+    const checkedInThisWeek = await Visitor.countDocuments({ status: 'checked-in', checkInTime: { $gte: startOfWeek, $lte: endOfWeek } });
+    const checkedOutThisWeek = await Visitor.countDocuments({ status: 'checked-out', checkOutTime: { $gte: startOfWeek, $lte: endOfWeek } });
+
+    res.json({
+      success: true,
+      data: {
+        today: {
+          totalVisitors: totalVisitorsToday,
+          checkedIn: checkedInToday,
+          checkedOut: checkedOutToday,
+          upcomingVisits
+        },
+        thisWeek: {
+          totalVisitors: totalVisitorsThisWeek,
+          checkedIn: checkedInThisWeek,
+          checkedOut: checkedOutThisWeek
+        }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error fetching dashboard stats', error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/schedule:
+ *   get:
+ *     summary: Get scheduled visits (for calendar view)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: start
+ *         schema:
+ *           type: string
+ *           format: date
+ *         required: true
+ *         description: Start date (inclusive, ISO format)
+ *       - in: query
+ *         name: end
+ *         schema:
+ *           type: string
+ *           format: date
+ *         required: true
+ *         description: End date (inclusive, ISO format)
+ *     responses:
+ *       200:
+ *         description: List of scheduled visits
+ *       400:
+ *         description: Invalid or missing date range
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/schedule', auth, checkRole(['admin', 'super_admin']), async (req, res) => {
+  try {
+    const Visitor = require('../models/visitor.model');
+    const { start, end } = req.query;
+    if (!start || !end) {
+      return res.status(400).json({ success: false, message: 'Start and end date are required' });
+    }
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    if (isNaN(startDate) || isNaN(endDate)) {
+      return res.status(400).json({ success: false, message: 'Invalid date format' });
+    }
+    // Find all visits in the date range
+    const visits = await Visitor.find({
+      visitDate: { $gte: startDate, $lte: endDate }
+    })
+      .populate('user', 'firstName lastName email phone photo')
+      .populate('host', 'firstName lastName email');
+    res.json({
+      success: true,
+      data: visits
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error fetching schedule', error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/visitor-stats:
+ *   get:
+ *     summary: Get today's visitor stats for admin dashboard
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Visitor stats retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/visitor-stats', auth, checkRole(['admin', 'super_admin']), async (req, res) => {
+  try {
+    const Visitor = require('../models/visitor.model');
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+
+    // Total visits scheduled for today
+    const todayTotal = await Visitor.countDocuments({ visitDate: { $gte: startOfToday, $lte: endOfToday } });
+    // Checked in today
+    const checkedIn = await Visitor.countDocuments({ status: 'checked-in', checkInTime: { $gte: startOfToday, $lte: endOfToday } });
+    // Pending (scheduled for today, not checked in or checked out)
+    const pending = await Visitor.countDocuments({ visitDate: { $gte: startOfToday, $lte: endOfToday }, status: 'scheduled' });
+    // Completed (checked out today)
+    const completed = await Visitor.countDocuments({ status: 'checked-out', checkOutTime: { $gte: startOfToday, $lte: endOfToday } });
+
+    res.json({
+      success: true,
+      data: {
+        todayTotal,
+        checkedIn,
+        pending,
+        completed
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error fetching visitor stats', error: error.message });
+  }
+});
+
 module.exports = router; 

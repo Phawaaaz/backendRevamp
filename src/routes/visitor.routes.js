@@ -292,6 +292,65 @@ router.post('/check-out/:qrCode', auth, checkRole(['admin']), async (req, res) =
 
 /**
  * @swagger
+ * /api/visitors/scan:
+ *   post:
+ *     summary: Get visitor details from QR code (admin only)
+ *     tags: [Visitors]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - qrCode
+ *             properties:
+ *               qrCode:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Visitor details retrieved successfully
+ *       400:
+ *         description: Invalid QR code
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Visitor record not found
+ */
+router.post('/scan', auth, checkRole(['admin', 'super_admin']), async (req, res) => {
+  try {
+    const { qrCode } = req.body;
+    if (!qrCode) {
+      return res.status(400).json({ success: false, message: 'QR code is required' });
+    }
+    const validationResult = validateQRCode(qrCode);
+    if (!validationResult.valid) {
+      return res.status(400).json({ success: false, message: validationResult.message });
+    }
+    const { visitorId, visitDate } = validationResult.data;
+    // Find the visit by visitorId and visitDate
+    const visit = await Visitor.findOne({
+      user: visitorId,
+      visitDate: new Date(visitDate)
+    })
+      .populate('user', 'firstName lastName email phone photo')
+      .populate('host', 'firstName lastName email');
+    if (!visit) {
+      return res.status(404).json({ success: false, message: 'Visitor record not found' });
+    }
+    res.json({
+      success: true,
+      data: visit
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error fetching visitor details', error: error.message });
+  }
+});
+
+/**
+ * @swagger
  * /api/visitors/preferences:
  *   patch:
  *     summary: Update visitor preferences
