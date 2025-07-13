@@ -171,10 +171,10 @@ router.post('/check-in', auth, checkRole(['admin']), async (req, res) => {
       });
     }
 
-    const visitor = await Visitor.findOne({
+    let visitor = await Visitor.findOne({
       user: validationResult.data.visitorId,
       status: 'scheduled'
-    }).populate('user', 'firstName lastName email');
+    });
 
     if (!visitor) {
       return res.status(404).json({
@@ -188,24 +188,30 @@ router.post('/check-in', auth, checkRole(['admin']), async (req, res) => {
     await visitor.save();
 
     // Generate new QR code for check-out
-    const qrResult = await generateQRCode(visitor.user._id, visitor.visitDate);
+    const qrResult = await generateQRCode(visitor.user, visitor.visitDate);
     if (qrResult.success) {
       visitor.qrCode = qrResult.qrData;
       visitor.qrCodeExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await visitor.save();
 
       // Send new QR code email
-      if (visitor.user.notificationPreferences?.email) {
+      const userDoc = await User.findById(visitor.user);
+      if (userDoc && userDoc.notificationPreferences?.email) {
         await sendEmail(
-          visitor.user.email,
+          userDoc.email,
           'visitorQRCode',
           {
-            visitorName: `${visitor.user.firstName} ${visitor.user.lastName}`,
+            visitorName: `${userDoc.firstName} ${userDoc.lastName}`,
             qrCodeUrl: qrResult.qrCodeUrl
           }
         );
       }
     }
+
+    // Populate user and host fields for the response
+    visitor = await Visitor.findById(visitor._id)
+      .populate('user', 'firstName lastName email phone photo')
+      .populate('host', 'firstName lastName email');
 
     res.json({
       success: true,
@@ -335,7 +341,7 @@ router.post('/scan', auth, checkRole(['admin', 'super_admin']), async (req, res)
       user: visitorId,
       visitDate: new Date(visitDate)
     })
-      .populate('user', 'firstName lastName email phone photo')
+      .populate('user', 'firstName lastName email phone')
       .populate('host', 'firstName lastName email');
     if (!visit) {
       return res.status(404).json({ success: false, message: 'Visitor record not found' });
